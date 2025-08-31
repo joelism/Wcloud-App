@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privates Protokoll (18+)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- PIN Login -->
+  <div id="login" class="overlay">
+    <div class="card">
+      <h2>Anmelden</h2>
+      <div class="field">
+        <label for="pinInput">PIN</label>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autofocus />
+        <p class="hint">Hinweis: 6-stellig</p>
+        <p id="loginError" class="error" hidden>Falscher PIN.</p>
+      </div>
+      <div class="row">
+        <button id="loginBtn">Anmelden</button>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <h1>Privates Protokoll (18+)</h1>
+    <p class="subtitle">Neutraler, lokaler Tracker – Daten bleiben ausschließlich in deinem Browser.</p>
+  </header>
+
+  </div>
+
+  <main id="app" hidden>
+    <!-- Nav Tabs -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="capture">Neuer Eintrag</button>
+      <button class="tab" data-tab="history">Verlauf</button>
+      <button class="tab" data-tab="analysis">Analyse</button>
+      <button class="tab" data-tab="settings">Einstellungen</button>
+    </nav>
+
+    <!-- Capture -->
+    <section id="capture" class="tabPanel">
+      <div class="card">
+        <h2>Eintrag erfassen</h2>
+
+        <form id="sessionForm">
+          <div class="grid">
+            <div class="field">
+              <label for="dt">Datum &amp; Uhrzeit</label>
+              <input id="dt" type="datetime-local" required />
+            </div>
+            <div class="field">
+              <label for="content">Inhalt</label>
+              <select id="content" required>
+                <option value="Wcloud112">Wcloud112</option>
+                <option value="Wcloud113">Wcloud113</option>
+                <option value="Wcloud114">Wcloud114</option>
+                <option value="Wcloud115">Wcloud115</option>
+                <option value="Wcloud116">Wcloud116</option>
+                <option value="Wcloud117">Wcloud117</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="personName">Name</label>
+              <input id="personName" type="text" placeholder="z. B. Maida" />
+            </div>
+          </div>
+
+          <fieldset class="field">
+            <legend>Orgasmus (Feuchtigkeit)</legend>
+            <div class="chips">
+              <label><input type="radio" name="wet" value="Sehr feucht" required />Sehr feucht</label>
+              <label><input type="radio" name="wet" value="Feucht" />Feucht</label>
+              <label><input type="radio" name="wet" value="Weniger feucht" />Weniger feucht</label>
+              <label><input type="radio" name="wet" value="Trocken" />Trocken</label>
+            </div>
+          </fieldset>
+
+          <fieldset class="field">
+            <legend>Geschlecht des Inhalts</legend>
+            <div class="chips">
+              <label><input type="radio" name="gender" value="Männlich" required />Männlich</label>
+              <label><input type="radio" name="gender" value="Weiblich" />Weiblich</label>
+            </div>
+          </fieldset>
+
+          <fieldset class="field">
+            <legend>Begleitender Porno?</legend>
+            <div class="chips">
+              <label><input type="radio" name="porn" value="Mit" required />Mit</label>
+              <label><input type="radio" name="porn" value="Ohne" />Ohne</label>
+            </div>
+          </fieldset>
+
+          <div class="row">
+            <button type="submit">Speichern</button>
+            <button type="reset" class="secondary">Zurücksetzen</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section id="history" class="tabPanel hidden">
+      <div class="card">
+        <h2>Verlauf</h2>
+
+        <div class="row wrap">
+          <input id="searchDate" type="date" />
+          <select id="filterContent">
+            <option value="">Alle Inhalte</option>
+            <option>Wcloud112</option>
+            <option>Wcloud113</option>
+            <option>Wcloud114</option>
+            <option>Wcloud115</option>
+            <option>Wcloud116</option>
+            <option>Wcloud117</option>
+          </select>
+          <select id="filterGender">
+            <option value="">Alle Geschlechter</option>
+            <option>Männlich</option>
+            <option>Weiblich</option>
+          </select>
+          <select id="filterPorn">
+            <option value="">Mit/Ohne Porno</option>
+            <option>Mit</option>
+            <option>Ohne</option>
+          </select>
+          <button id="clearFilters" class="secondary">Filter löschen</button>
+        </div>
+
+        <div id="historyList" class="list"></div>
+      </div>
+    </section>
+
+    <!-- Analysis -->
+    <section id="analysis" class="tabPanel hidden">
+      <div class="card">
+        <h2>Analyse</h2>
+        <div id="statsSummary" class="summary"></div>
+
+        <h3>Häufigkeit pro Kalendertag</h3>
+        <div id="perDay" class="table"></div>
+
+        <h3>Wochentage</h3>
+        <div id="weekdayBars" class="bars"></div>
+
+        <div class="grid two">
+          <div>
+            <h3>Geschlecht</h3>
+            <div id="genderBars" class="bars"></div>
+          </div>
+          <div>
+            <h3>Begleitender Porno</h3>
+            <div id="pornBars" class="bars"></div>
+          </div>
+        </div>
+
+        <h3>Wcloud-Inhalte</h3>
+        <div id="contentBars" class="bars"></div>
+
+        <h3>Namen</h3>
+        <div id="nameBars" class="bars"></div>
+
+        <h3>Feuchtigkeits-Level</h3>
+        <div id="wetBars" class="bars"></div>
+
+        <div class="row">
+          <button id="exportCsv" class="secondary">CSV exportieren</button>
+        </div>
+      </div>
+    </section>
+  
+    <!-- Einstellungen -->
+    <section id="settings" class="tabPanel hidden">
+      <div class="card">
+        <h2>Einstellungen</h2>
+        <p class="muted">Hier kannst du die gesamte Datenbank löschen. Diese Aktion kann nicht rückgängig gemacht werden.</p>
+        <button id="clearAll" class="danger">Alle Daten löschen</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p class="muted">
+      Hinweis: Dieses Tool ist nur zur privaten Selbstbeobachtung gedacht. Keine minderjährigen oder illegalen Inhalte. 
+      Alle Daten bleiben lokal in deinem Browser (IndexedDB); lösche den Verlauf im Browser, um alles zu entfernen.
+    </p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
