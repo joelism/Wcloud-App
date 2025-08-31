@@ -1,4 +1,4 @@
-// Privates Protokoll (18+) – neutraler lokaler Tracker
+// Privates Protokoll (18+) – lokaler Tracker
 // Daten in IndexedDB, keine externen Abhängigkeiten
 
 // ---------- IndexedDB ----------
@@ -14,7 +14,7 @@ function openDB() {
         store.createIndex("gender", "gender", { unique: false });
         store.createIndex("porn", "porn", { unique: false });
         store.createIndex("createdAt", "createdAt", { unique: false });
-      store.createIndex("name", "name", { unique: false });
+        store.createIndex("name", "name", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -53,7 +53,6 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
 function nowLocalInputValue() {
-  // yyyy-MM-ddTHH:mm (without seconds)
   const d = new Date();
   const pad = (n)=> String(n).padStart(2,"0");
   const y = d.getFullYear();
@@ -68,28 +67,12 @@ function toIsoDate(ts) {
   const pad = (n)=> String(n).padStart(2,"0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
-function weekdayIndex(ts){ return new Date(ts).getDay(); } // 0=Sun
+function weekdayIndex(ts){ return new Date(ts).getDay(); } // 0=So
 function weekdayName(i){
   return ["So","Mo","Di","Mi","Do","Fr","Sa"][i];
 }
 
-// ---------- UI: Tabs ----------
-function setupTabs() {
-  $$(".tab").forEach(btn => {
-    btn.addEventListener("click", () => {
-      $$(".tab").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      const tab = btn.dataset.tab;
-      $$(".tabPanel").forEach(p => p.classList.add("hidden"));
-      $("#" + tab).classList.remove("hidden");
-      if (tab === "analysis") renderAnalysis();
-      if (tab === "history") renderHistory();
-    });
-  });
-}
-
 // ---------- Login ----------
-
 const PIN = "544221";
 function setupLogin() {
   const overlay = document.getElementById("login");
@@ -104,12 +87,11 @@ function setupLogin() {
     app.hidden = false;
   }
 
-    overlay.style.display = "flex";
-  }
+  // immer PIN abfragen
+  overlay.style.display = "flex";
 
   loginBtn.addEventListener("click", () => {
     if (pinInput.value.replace(/\D/g, "") === PIN) {
-      sessionStorage.setItem("loggedIn", "true");
       unlock();
     } else {
       err.hidden = false;
@@ -117,14 +99,31 @@ function setupLogin() {
     }
   });
 
-  if (toggle) toggle.addEventListener("click", ()=>{
-    pinInput.type = (pinInput.type === "password" ? "text" : "password");
-  });
   pinInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") loginBtn.click();
   });
+
+  if (toggle) {
+    toggle.addEventListener("click", ()=>{
+      pinInput.type = (pinInput.type === "password" ? "text" : "password");
+    });
+  }
 }
 
+// ---------- Tabs ----------
+function setupTabs() {
+  $$(".tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      $$(".tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      const tab = btn.dataset.tab;
+      $$(".tabPanel").forEach(p => p.classList.add("hidden"));
+      $("#" + tab).classList.remove("hidden");
+      if (tab === "analysis") renderAnalysis();
+      if (tab === "history") renderHistory();
+    });
+  });
+}
 
 // ---------- Form Capture ----------
 async function setupForm(db) {
@@ -133,7 +132,7 @@ async function setupForm(db) {
 
   $("#sessionForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const dtVal = $("#dt").value; // local datetime
+    const dtVal = $("#dt").value;
     const wet = (new FormData(e.target).get("wet"));
     const gender = (new FormData(e.target).get("gender"));
     const porn = (new FormData(e.target).get("porn"));
@@ -162,7 +161,7 @@ async function setupForm(db) {
   });
 }
 
-// ---------- History Rendering ----------
+// ---------- History ----------
 let _allSessionsCache = [];
 async function loadAll(db) {
   _allSessionsCache = await getAllSessions(db);
@@ -265,7 +264,7 @@ function renderPerDayTable(list) {
   cont.innerHTML = "";
   if (!list.length) { cont.innerHTML = "<p class='muted'>Noch keine Daten.</p>"; return; }
   const byDay = countBy(list, s => s.isoDate);
-  const arr = Array.from(byDay.entries()).sort((a,b)=> a[0].localeCompare(b[0])); // oldest->newest
+  const arr = Array.from(byDay.entries()).sort((a,b)=> a[0].localeCompare(b[0]));
   arr.forEach(([day, n]) => {
     const row = document.createElement("div");
     row.className = "tableRow";
@@ -279,7 +278,6 @@ function renderPerDayTable(list) {
 async function renderAnalysis() {
   const db = await openDB();
   const all = await getAllSessions(db);
-  // summary
   const sum = $("#statsSummary");
   sum.innerHTML = "";
   const total = all.length;
@@ -291,33 +289,26 @@ async function renderAnalysis() {
     sum.appendChild(pill(`Letzter Eintrag: ${last.isoDate} ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`));
   }
 
-  // per day
   renderPerDayTable(all);
 
-  // weekday
   const byWd = countBy(all, s => weekdayIndex(s.createdAt));
   renderBars("#weekdayBars", byWd, [1,2,3,4,5,6,0], (k)=> weekdayName(k));
 
-  // gender
   const byGender = countBy(all, s => s.gender || "—");
   renderBars("#genderBars", byGender);
 
-  // porn
   const byPorn = countBy(all, s => s.porn || "—");
   renderBars("#pornBars", byPorn, ["Mit","Ohne"]);
 
-  // content
   const byContent = countBy(all, s => s.content || "—");
   renderBars("#contentBars", byContent, ["Wcloud112","Wcloud113","Wcloud114","Wcloud115","Wcloud116","Wcloud117"]);
 
-  // wetness
   const byWet = countBy(all, s => s.wet || "—");
   renderBars("#wetBars", byWet, ["Sehr feucht","Feucht","Weniger feucht","Trocken"]);
-  // names
+
   const byName = countBy(all.filter(s=> (s.name||"").trim() !== ""), s => s.name.trim());
   renderBars("#nameBars", byName);
 
-  // yearly stat sentence per name (current year)
   const thisYear = (new Date()).getFullYear();
   const listThisYear = all.filter(s => (new Date(s.createdAt)).getFullYear() === thisYear && (s.name||"").trim() !== "");
   const byNameYear = countBy(listThisYear, s => s.name.trim());
@@ -325,7 +316,6 @@ async function renderAnalysis() {
     const parts = Array.from(byNameYear.entries()).sort((a,b)=> b[1]-a[1]).map(([n,c]) => `${c}× ${n}`);
     sum.appendChild(pill(`Dieses Jahr: ${parts.join(", ")}`));
   }
-
 }
 
 // ---------- Export CSV ----------
@@ -340,7 +330,7 @@ async function setupExport() {
   $("#exportCsv").addEventListener("click", async () => {
     const db = await openDB();
     const all = await getAllSessions(db);
-    const rows = [["ISO Datum","Zeit","Wochentag","Inhalt","Geschlecht","Porno","Feuchtigkeit"]];
+    const rows = [["ISO Datum","Zeit","Wochentag","Inhalt","Geschlecht","Porno","Feuchtigkeit","Name"]];
     all.sort((a,b)=> a.createdAt - b.createdAt).forEach(s => {
       const d = new Date(s.createdAt);
       rows.push([
@@ -350,7 +340,8 @@ async function setupExport() {
         s.content || "",
         s.gender || "",
         s.porn || "",
-        s.wet || ""
+        s.wet || "",
+        s.name || ""
       ]);
     });
     const blob = new Blob([toCsv(rows)], {type:"text/csv;charset=utf-8"});
@@ -379,7 +370,6 @@ function setupHistoryFilters() {
   });
 }
 
-
 // ---------- Einstellungen ----------
 async function setupSettings() {
   document.getElementById("clearAll").addEventListener("click", async () => {
@@ -392,13 +382,12 @@ async function setupSettings() {
 
 // ---------- Boot ----------
 (async function boot(){
-  setupTabs();
   setupLogin();
+  setupTabs();
   const db = await openDB();
   await setupForm(db);
   setupHistoryFilters();
   await setupExport();
   await setupSettings();
-  // initial renders
   await renderHistory();
 })();
