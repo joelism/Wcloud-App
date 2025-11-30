@@ -517,7 +517,7 @@ function setupWcloudWheel(){
 
 // Lightbox
 let lightboxIndex = -1;
-let touchStartX = null;
+let touchStartY = null;
 
 function openLightboxAt(index){
   if (index < 0 || index >= wheelDisplayed.length) return;
@@ -560,19 +560,24 @@ function setupLightbox(){
     if (ev.target === overlay) closeLightbox();
   });
 
-  // Swipe wie Instagram
+  // Swipe wie Instagram – vertikal (oben/unten)
   overlay.addEventListener("touchstart",(ev)=>{
     if (ev.touches && ev.touches.length === 1){
-      touchStartX = ev.touches[0].clientX;
+      touchStartY = ev.touches[0].clientY;
     }
   });
   overlay.addEventListener("touchend",(ev)=>{
-    if (touchStartX == null || !ev.changedTouches || !ev.changedTouches.length) return;
-    const dx = ev.changedTouches[0].clientX - touchStartX;
+    if (touchStartY == null || !ev.changedTouches || !ev.changedTouches.length) return;
+    const dy = ev.changedTouches[0].clientY - touchStartY;
     const threshold = 40;
-    if (dx > threshold) showLightboxDelta(-1);
-    else if (dx < -threshold) showLightboxDelta(1);
-    touchStartX = null;
+    if (dy > threshold) {
+      // nach unten wischen → vorheriges Bild
+      showLightboxDelta(-1);
+    } else if (dy < -threshold) {
+      // nach oben wischen → nächstes Bild
+      showLightboxDelta(1);
+    }
+    touchStartY = null;
   });
 }
 
