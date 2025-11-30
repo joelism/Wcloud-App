@@ -63,8 +63,24 @@ function loadImageUrls(){
     const raw = localStorage.getItem(IMAGE_URLS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.filter(u=>typeof u==="string" && u.trim()!=="");
-    return [];
+
+    if (!Array.isArray(parsed)) return [];
+
+    // Unterstützt alte Struktur (reine Strings) und neue Struktur ({url, name}).
+    return parsed
+      .map(item=>{
+        if (typeof item === "string"){
+          const url = item.trim();
+          return url ? { url, name: "" } : null;
+        }
+        if (item && typeof item === "object"){
+          const url = String(item.url || "").trim();
+          const name = item.name != null ? String(item.name).trim() : "";
+          return url ? { url, name } : null;
+        }
+        return null;
+      })
+      .filter(Boolean);
   }catch{
     return [];
   }
@@ -80,6 +96,7 @@ function syncImagePoolFromStorage(){
   wheelDisplayed = [];
   renderImagePool();
   renderWheelReset();
+  syncWheelNamesFromImages();
 }
 
 // ---------- Login ----------
@@ -432,12 +449,63 @@ function updateWheelInfo(message){
   grid.appendChild(p);
 }
 
+// Modus: "regular" (Zufallsbilder) oder "nameWheel" (Glücksrad nach Namen)
+let wheelMode = "regular";
+
+// Alle Namen, die aktuell im Bild-Pool hinterlegt sind (einmalig)
+let wheelNamesAll = [];
+// Noch nicht gezogene Namen im Glücksrad
+let wheelNamesRemaining = [];
+
 function renderWheelReset(){
   const grid = $("#wheelGrid");
   if (!grid) return;
   wheelRemaining = imageUrls.slice();
   wheelDisplayed = [];
-  grid.innerHTML = "<p class='muted'>Noch keine Bilder angezeigt. Klicke auf „Mehr Bilder laden“.</p>";
+  grid.innerHTML = "<p class='muted'>Noch keine Bilder angezeigt. Klicke auf „Mehr Bilder laden“ oder benutze das Namen-Wheel.</p>";
+}
+
+// Namen aus dem Bild-Pool neu aufbauen
+function syncWheelNamesFromImages(){
+  const names = Array.from(
+    new Set(
+      imageUrls
+        .map(e => (e.name || "").trim())
+        .filter(Boolean)
+    )
+  );
+  wheelNamesAll = names;
+  wheelNamesRemaining = names.slice();
+  renderWheelNamesList();
+  const current = $("#wheelCurrentName");
+  if (current) current.textContent = names.length ? "" : "(keine Namen hinterlegt)";
+}
+
+// Namen im UI anzeigen
+function renderWheelNamesList(){
+  const list = $("#wheelNamesList");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!wheelNamesAll.length){
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = "Noch keine Namen im Bild-Pool. Füge in den Einstellungen Name + URL hinzu.";
+    list.appendChild(p);
+    return;
+  }
+  wheelNamesAll.forEach(name=>{
+    const span = document.createElement("span");
+    span.className = "tagChip";
+    span.textContent = name;
+    list.appendChild(span);
+  });
+}
+
+// Glücksrad-Namen zurücksetzen
+function resetNameWheel(){
+  wheelNamesRemaining = wheelNamesAll.slice();
+  const current = $("#wheelCurrentName");
+  if (current) current.textContent = "";
 }
 
 function pickRandomFromRemaining(count){
@@ -449,14 +517,14 @@ function pickRandomFromRemaining(count){
   return out;
 }
 
-function appendWheelImages(urls, replace){
+function appendWheelImages(entries, replace){
   const grid = $("#wheelGrid");
-  if (!grid || !urls.length) return;
+  if (!grid || !entries.length) return;
 
-  // Wenn replace=true, immer nur die aktuelle Zufallsauswahl anzeigen
+  // Wenn replace=true, immer nur die aktuelle Auswahl anzeigen
   if (replace){
-    grid.innerHTML = "";       // Platzhalter / alte Bilder entfernen
-    wheelDisplayed = [];       // Lightbox-Liste nur für diese Auswahl
+    grid.innerHTML = "";
+    wheelDisplayed = [];
   } else if (wheelDisplayed.length === 0){
     // erste Bilder -> Platzhalter entfernen
     grid.innerHTML = "";
@@ -468,14 +536,22 @@ function appendWheelImages(urls, replace){
     wrapper.className = "wheelGridInner";
     grid.appendChild(wrapper);
   }
-  urls.forEach(url=>{
+  entries.forEach(entry=>{
     const index = wheelDisplayed.length;
-    wheelDisplayed.push(url);
+    wheelDisplayed.push(entry);
     const item = document.createElement("div");
     item.className = "wheelItem";
+
+    if (entry.name){
+      const label = document.createElement("div");
+      label.className = "wheelLabel";
+      label.textContent = entry.name;
+      item.appendChild(label);
+    }
+
     const img = document.createElement("img");
-    img.src = url;
-    img.alt = "wcloud-wheel Bild";
+    img.src = entry.url;
+    img.alt = entry.name ? `wcloud-wheel Bild – ${entry.name}` : "wcloud-wheel Bild";
     img.loading = "lazy";
     img.className = "wheelImage";
     img.addEventListener("click", ()=>{
@@ -497,7 +573,37 @@ function handleWheelMoreClick(){
     return;
   }
   const batch = pickRandomFromRemaining(wheelBatchSize);
-  appendWheelImages(batch);
+  appendWheelImages(batch, false);
+}
+
+// Einen Namen per Glücksrad ziehen und alle Bilder mit diesem Namen hinzufügen
+function spinNameWheel(){
+  const grid = $("#wheelGrid");
+  if (!imageUrls.length){
+    if (grid) grid.innerHTML = "<p class='muted'>Noch keine Bilder im Pool. Füge im Tab „Einstellungen“ Bild-URLs hinzu.</p>";
+    return;
+  }
+  if (!wheelNamesAll.length){
+    updateWheelInfo("Es sind keine Namen hinterlegt. Füge in den Einstellungen Name + URL hinzu.");
+    return;
+  }
+  if (!wheelNamesRemaining.length){
+    updateWheelInfo("Alle Namen wurden bereits gezogen. Mit „Zurücksetzen“ kannst du neu starten.");
+    return;
+  }
+
+  const idx = Math.floor(Math.random() * wheelNamesRemaining.length);
+  const name = wheelNamesRemaining.splice(idx, 1)[0];
+
+  const current = $("#wheelCurrentName");
+  if (current) current.textContent = "Ausgewählt: " + name;
+
+  const matchingEntries = imageUrls.filter(e => (e.name || "").trim() === name);
+  if (!matchingEntries.length){
+    updateWheelInfo("Für den Namen „" + name + "“ sind aktuell keine Bilder hinterlegt.");
+    return;
+  }
+  appendWheelImages(matchingEntries, false);
 }
 
 function handleWheelBatchChange(ev){
@@ -505,19 +611,44 @@ function handleWheelBatchChange(ev){
   if (!isNaN(val)) wheelBatchSize = val;
 }
 
+function updateWheelModeUI(){
+  const regular = $("#wheelRegularControls");
+  const nameControls = $("#wheelNameControls");
+  if (regular) regular.style.display = (wheelMode === "regular" ? "flex" : "none");
+  if (nameControls) nameControls.style.display = (wheelMode === "nameWheel" ? "block" : "none");
+}
+
 function setupWcloudWheel(){
   const moreBtn = $("#wheelMoreBtn");
   const resetBtn = $("#wheelResetBtn");
   const sizeSel = $("#wheelBatchSize");
+  const spinBtn = $("#wheelSpinBtn");
+  const resetNamesBtn = $("#wheelResetNamesBtn");
+  const modeRadios = $all("input[name='wheelMode']");
 
   if (moreBtn)  moreBtn.addEventListener("click", handleWheelMoreClick);
   if (resetBtn) resetBtn.addEventListener("click", renderWheelReset);
   if (sizeSel)  sizeSel.addEventListener("change", handleWheelBatchChange);
+  if (spinBtn) spinBtn.addEventListener("click", spinNameWheel);
+  if (resetNamesBtn) resetNamesBtn.addEventListener("click", resetNameWheel);
+
+  if (modeRadios && modeRadios.length){
+    modeRadios.forEach(radio=>{
+      radio.addEventListener("change",(ev)=>{
+        wheelMode = ev.target.value || "regular";
+        updateWheelModeUI();
+      });
+      if (radio.checked){
+        wheelMode = radio.value || "regular";
+      }
+    });
+  }
+  updateWheelModeUI();
 }
 
 // Lightbox
 let lightboxIndex = -1;
-let touchStartY = null;
+let touchStartX = null;
 
 function openLightboxAt(index){
   if (index < 0 || index >= wheelDisplayed.length) return;
@@ -525,7 +656,8 @@ function openLightboxAt(index){
   const overlay = $("#imageLightbox");
   const img = $("#lightboxImage");
   if (!overlay || !img) return;
-  img.src = wheelDisplayed[index];
+  const entry = wheelDisplayed[index];
+  img.src = entry && entry.url ? entry.url : "";
   overlay.classList.add("active");
 }
 
@@ -560,24 +692,19 @@ function setupLightbox(){
     if (ev.target === overlay) closeLightbox();
   });
 
-  // Swipe wie Instagram – vertikal (oben/unten)
+  // Swipe wie Instagram (horizontal)
   overlay.addEventListener("touchstart",(ev)=>{
     if (ev.touches && ev.touches.length === 1){
-      touchStartY = ev.touches[0].clientY;
+      touchStartX = ev.touches[0].clientX;
     }
   });
   overlay.addEventListener("touchend",(ev)=>{
-    if (touchStartY == null || !ev.changedTouches || !ev.changedTouches.length) return;
-    const dy = ev.changedTouches[0].clientY - touchStartY;
+    if (touchStartX == null || !ev.changedTouches || !ev.changedTouches.length) return;
+    const dx = ev.changedTouches[0].clientX - touchStartX;
     const threshold = 40;
-    if (dy > threshold) {
-      // nach unten wischen → vorheriges Bild
-      showLightboxDelta(-1);
-    } else if (dy < -threshold) {
-      // nach oben wischen → nächstes Bild
-      showLightboxDelta(1);
-    }
-    touchStartY = null;
+    if (dx > threshold) showLightboxDelta(-1);
+    else if (dx < -threshold) showLightboxDelta(1);
+    touchStartX = null;
   });
 }
 
@@ -629,10 +756,24 @@ async function importBackupFile(file){
   }
 
   if (Array.isArray(data.imageUrls)){
-    imageUrls = data.imageUrls.filter(u=>typeof u==="string" && u.trim()!=="");
+    imageUrls = data.imageUrls
+      .map(item=>{
+        if (typeof item === "string"){
+          const url = item.trim();
+          return url ? { url, name: "" } : null;
+        }
+        if (item && typeof item === "object"){
+          const url = String(item.url || "").trim();
+          const name = item.name != null ? String(item.name).trim() : "";
+          return url ? { url, name } : null;
+        }
+        return null;
+      })
+      .filter(Boolean);
     saveImageUrls();
     renderImagePool();
     renderWheelReset();
+    syncWheelNamesFromImages();
   }
 }
 
@@ -647,12 +788,20 @@ function renderImagePool(){
   if (!grid) return;
   grid.innerHTML = "";
   if (!imageUrls.length) return;
-  imageUrls.forEach((url, idx)=>{
+  imageUrls.forEach((entry, idx)=>{
     const item = document.createElement("div");
     item.className = "wheelItem";
+
+    if (entry.name){
+      const label = document.createElement("div");
+      label.className = "wheelLabel";
+      label.textContent = entry.name;
+      item.appendChild(label);
+    }
+
     const img = document.createElement("img");
-    img.src = url;
-    img.alt = "Bild-URL";
+    img.src = entry.url;
+    img.alt = entry.name ? `Bild-URL – ${entry.name}` : "Bild-URL";
     img.loading = "lazy";
     img.className = "wheelImage";
     const del = document.createElement("button");
@@ -669,6 +818,7 @@ function renderImagePool(){
       wheelRemaining = imageUrls.slice();
       wheelDisplayed = [];
       renderWheelReset();
+      syncWheelNamesFromImages();
     });
     item.appendChild(img);
     item.appendChild(del);
@@ -714,6 +864,7 @@ function setupSettings(){
       saveImageUrls();
       renderImagePool();
       renderWheelReset();
+      syncWheelNamesFromImages();
     });
   }
 
@@ -752,19 +903,23 @@ function setupSettings(){
   // Image-Pool Inputs
   const addBtn = $("#addImageUrlBtn");
   const input = $("#imageUrlInput");
+  const nameInput = $("#imageNameInput");
   if (addBtn && input){
     addBtn.addEventListener("click", ()=>{
       const val = (input.value || "").trim();
+      const nameVal = (nameInput && nameInput.value || "").trim();
       if (!val) return;
       if (!/^https?:\/\//i.test(val)){
         alert("Bitte eine gültige URL mit http/https eingeben.");
         return;
       }
-      imageUrls.push(val);
+      imageUrls.push({ url: val, name: nameVal });
       saveImageUrls();
       input.value = "";
+      if (nameInput) nameInput.value = "";
       renderImagePool();
       renderWheelReset();
+      syncWheelNamesFromImages();
     });
   }
 }
