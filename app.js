@@ -790,6 +790,14 @@ function appendWheelImages(entries, replace){
     img.className = "wheelImage";
     item.appendChild(img);
 
+    // 👉 NEU: Klick aufs Item öffnet die Lightbox & ermöglicht Swipen
+    item.addEventListener("click", () => {
+      const idxInDisplayed = wheelDisplayed.indexOf(entry);
+      if (idxInDisplayed >= 0) {
+        openLightboxAt(idxInDisplayed);
+      }
+    });
+
     wrapper.appendChild(item);
   });
 }
