@@ -9,6 +9,10 @@
 />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- externe Styles (optional) -->
+  <link rel="stylesheet" href="styles.css" />
+
   <style>
     :root {
       color-scheme: dark;
@@ -77,7 +81,7 @@
       gap: 1rem;
       align-items: center;
     }
-    header img.logo {
+    .logo {
       width: 40px;
       height: 40px;
       border-radius: 12px;
@@ -129,7 +133,7 @@
       display: block;
     }
 
-    /* Startscreen */
+    /* Startscreen im App */
     #startScreen {
       display: none;
       flex-direction: column;
@@ -390,7 +394,7 @@
       text-decoration: underline;
     }
 
-    /* Login */
+    /* Login – neu gestaltet */
     #login {
       position: fixed;
       inset: 0;
@@ -398,12 +402,19 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      padding-top: env(safe-area-inset-top, 1.25rem);
-      padding-bottom: env(safe-area-inset-bottom, 1.25rem);
+      justify-content: center;
+      padding-top: env(safe-area-inset-top, 2rem);
+      padding-bottom: env(safe-area-inset-bottom, 2rem);
       padding-left: 0.75rem;
       padding-right: 0.75rem;
       z-index: 40;
+    }
+    #loginHint {
+      max-width: 420px;
+      font-size: 0.75rem;
+      color: rgba(148,163,184,0.75);
+      text-align: center;
+      margin-bottom: 0.75rem;
     }
     #loginCard {
       width: 100%;
@@ -415,25 +426,24 @@
       box-shadow: 0 20px 70px rgba(0,0,0,0.85);
       text-align: center;
     }
+    .loginLogo {
+      margin: 0 auto 0.85rem auto;
+    }
     #loginCard h2 {
-      font-size: 1.4rem;
-      margin-bottom: 0.5rem;
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+    #loginCard p {
+      font-size: 0.85rem;
+      color: var(--text-soft);
     }
     #loginCard input {
-      margin-top: 0.6rem;
+      margin-top: 0.8rem;
     }
     #loginCard button {
       margin-top: 1.15rem;
       width: 100%;
       justify-content: center;
-    }
-    #loginHint {
-      position: absolute;
-      top: 0.75rem;
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.7rem;
-      color: rgba(148,163,184,0.4);
     }
     #loginError {
       margin-top: 0.4rem;
@@ -505,8 +515,8 @@
       align-items: center;
       justify-content: center;
     }
-    #lightboxPrev { left: -0.75rem; }
-    #lightboxNext { right: -0.75rem; }
+    #lightboxPrev { left: 0.15rem; }
+    #lightboxNext { right: 0.15rem; }
 
     /* Danger */
     .danger {
@@ -538,8 +548,6 @@
         flex-direction: row;
         align-items: flex-start;
       }
-      #lightboxPrev { left: 0.15rem; }
-      #lightboxNext { right: 0.15rem; }
       #wheelCircle {
         width: 210px;
         height: 210px;
@@ -548,12 +556,16 @@
   </style>
 </head>
 <body>
+  <!-- Login / Startbildschirm -->
   <div id="login">
     <div id="loginHint">
-      Hinweis: Dieses Tool ist nur zur privaten Selbstbeobachtung gedacht. Keine minderjährigen oder illegalen Inhalte. Alle Daten bleiben lokal in deinem Browser.
+      Hinweis: Dieses Tool ist nur zur privaten Selbstbeobachtung gedacht.
+      Keine minderjährigen oder illegalen Inhalte. Alle Daten bleiben lokal in deinem Browser.
     </div>
     <div id="loginCard">
+      <div class="logo loginLogo">Wcloud<br/>App</div>
       <h2>Anmelden</h2>
+      <p>Gib deinen persönlichen PIN ein, um dein privates Protokoll zu entsperren.</p>
       <form id="loginForm">
         <label for="pinInput">PIN</label>
         <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" />
@@ -582,12 +594,15 @@
       </div>
 
       <div id="startScreen">
-        <p class="muted">Wähle, womit du starten möchtest:</p>
-        <div class="startRow">
+        <h2 style="font-size:1.2rem;margin-bottom:0.35rem;">Womit möchtest du starten?</h2>
+        <p class="muted">Du kannst Einträge erfassen, dein Wheel nutzen oder zuerst den Bild-Pool einrichten.</p>
+        <div class="startRow" style="margin-top:0.75rem;">
           <button id="startEntries" class="btn btn-primary">Eintrag erfassen</button>
           <button id="startWheel" class="btn btn-secondary">wcloud-wheel öffnen</button>
         </div>
-        <button id="startSettings" class="btn btn-secondary">Einstellungen / Bild-Pool</button>
+        <button id="startSettings" class="btn btn-secondary" style="margin-top:0.5rem;">
+          Einstellungen / Bild-Pool
+        </button>
       </div>
     </div>
 
@@ -762,6 +777,14 @@
           </label>
         </div>
 
+        <!-- Tag-Filter für Wheel -->
+        <div style="margin-top:0.75rem;">
+          <p class="muted">
+            Tags für das Wheel (optional): Ist nichts ausgewählt, werden alle Bilder verwendet.
+          </p>
+          <div id="wheelTagFilterRow" class="tagRow" style="margin-top:0.4rem;"></div>
+        </div>
+
         <div id="wheelRegularControls" class="row wrap" style="margin-top:0.75rem;">
           <label for="wheelBatchSize">Anzahl pro Klick:</label>
           <select id="wheelBatchSize">
@@ -828,17 +851,30 @@
       <div class="card">
         <h2>Bild-Pool für wcloud-wheel</h2>
         <p class="muted">
-          Hier verwaltest du die Bild-URLs für das Wheel. Jeder URL kann optional ein Name zugeordnet werden.
-          Unbenannte Bilder werden automatisch als „Wcloud-Star“ behandelt.
+          Hier verwaltest du die Bild-URLs für das Wheel. Jeder URL kann optional ein Name
+          und beliebige Tags zugeordnet werden. Unbenannte Bilder werden automatisch als „Wcloud-Star“ behandelt.
         </p>
 
         <div class="row wrap" style="margin-top:0.75rem; gap:0.5rem;">
           <input id="imageUrlInput" type="url" placeholder="https://beispiel.de/bild.jpg" style="flex:2 1 220px;" />
-          <input id="imageNameInput" type="text" placeholder="Optionaler Name (z.B. Person oder Kategorie)" style="flex:1 1 180px;" />
+          <input id="imageNameInput" type="text" placeholder="Optionaler Name (z.B. Person)" style="flex:1 1 180px;" />
           <button id="addImageUrlBtn" class="btn btn-primary">URL hinzufügen</button>
         </div>
 
-        <p id="imagePoolInfo" class="muted" style="margin-top:0.65rem;"></p>
+        <!-- Tagverwaltung -->
+        <div style="margin-top:0.9rem;">
+          <h3 style="font-size:1rem; margin-bottom:0.2rem;">Tags verwalten</h3>
+          <p class="muted">
+            Erstelle Tags (Kategorien), die du später den Bildern zuordnen kannst.
+          </p>
+          <div class="row wrap" style="margin-top:0.55rem; gap:0.5rem;">
+            <input id="tagInput" type="text" placeholder="Neuer Tag (z.B. „Gym“, „Solo“)" style="flex:1 1 200px;" />
+            <button id="addTagBtn" class="btn btn-secondary btn-small">Tag hinzufügen</button>
+          </div>
+          <div id="tagList" class="tagRow" style="margin-top:0.45rem;"></div>
+        </div>
+
+        <p id="imagePoolInfo" class="muted" style="margin-top:0.75rem;"></p>
 
         <div id="imagePoolGrid" class="wheelGridInner" style="margin-top:0.4rem;"></div>
       </div>
@@ -858,7 +894,3 @@
     Hinweis: Dieses Tool ist nur zur privaten Selbstbeobachtung gedacht. Keine minderjährigen oder illegalen Inhalte.
     Alle Daten bleiben lokal in deinem Browser und werden nicht auf einen Server hochgeladen.
   </footer>
-
-  <script src="app.js"></script>
-</body>
-</html>
