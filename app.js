@@ -68,7 +68,7 @@ let wheelBatchSize = 5;
 let imageTags = [];
 let selectedTags = new Set();
 
-// 🔧 FIX: Tags werden jetzt korrekt aus localStorage geladen
+// ✅ FIX: Tags werden jetzt mitgeladen & ältere Daten bleiben kompatibel
 function loadImageUrls(){
   try{
     const raw = localStorage.getItem(IMAGE_URLS_KEY);
@@ -77,18 +77,16 @@ function loadImageUrls(){
     if (!Array.isArray(parsed)) return [];
     return parsed
       .map(item=>{
-        // Alte Struktur: nur String (URL)
+        // Alte Struktur: nur String-URL
         if (typeof item === "string"){
           const url = item.trim();
           return url ? { url, name: DEFAULT_IMAGE_NAME, tags: [] } : null;
         }
-        // Neue/aktuelle Struktur: Objekt mit url, name, evtl. tags
+        // Objekt-Struktur: url + name (+ optional tags)
         if (item && typeof item === "object"){
           const url = String(item.url || "").trim();
           const name = normalizeName(item.name);
-          const tags = Array.isArray(item.tags)
-            ? item.tags.map(t => String(t || "").trim()).filter(Boolean)
-            : [];
+          const tags = Array.isArray(item.tags) ? item.tags : [];
           return url ? { url, name, tags } : null;
         }
         return null;
@@ -461,7 +459,6 @@ async function renderAnalysis(){
   });
   renderBars("#weekdayBars", weekdayMap, weekdayNames);
 
-  // Geschlecht: alte "Divers / Unklar"-Werte werden als "—" zusammengefasst
   renderBars(
     "#genderBars",
     groupBy(all, s => {
@@ -670,6 +667,148 @@ function appendWheelImages(entries, replace){
   entries.forEach(entry=>{
     const index = wheelDisplayed.length;
     wheelDisplayed.push(entry);
+
+    const item = document.createElement("div");
+    item.className = "wheelItem";
+
+    const topRow = document.createElement("div");
+    topRow.style.display = "flex";
+    topRow.style.alignItems = "center";
+    topRow.style.justifyContent = "space-between";
+    topRow.style.columnGap = "0.25rem";
+
+    const label = document.createElement("div");
+    label.className = "wheelLabel";
+    label.textContent = entry.name || DEFAULT_IMAGE_NAME;
+    label.style.flex = "1 1 auto";
+
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.alignItems = "center";
+    actions.style.gap = "0.15rem";
+
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "✎";
+    editBtn.title = "Namen bearbeiten";
+    editBtn.style.border = "none";
+    editBtn.style.background = "transparent";
+    editBtn.style.color = "#9ca3af";
+    editBtn.style.fontSize = "0.75rem";
+    editBtn.style.cursor = "pointer";
+    editBtn.style.padding = "0 0.25rem";
+
+    editBtn.addEventListener("click",(ev)=>{
+      ev.stopPropagation();
+      const currentName = entry.name || "";
+      const newNameRaw = prompt("Neuer Name für dieses Bild (leer = Wcloud-Star)", currentName);
+      if (newNameRaw === null) return;
+      const finalName = normalizeName(newNameRaw);
+      entry.name = finalName;
+      saveImageUrls();
+      renderImagePool();
+      renderWheelReset();
+      syncWheelNamesFromImages();
+    });
+
+    const del = document.createElement("button");
+    del.textContent = "×";
+    del.title = "Link löschen";
+    del.style.border = "none";
+    del.style.background = "transparent";
+    del.style.color = "#f97373";
+    del.style.fontSize = "0.9rem";
+    del.style.cursor = "pointer";
+    del.style.padding = "0 0.25rem";
+
+    del.addEventListener("click",(ev)=>{
+      ev.stopPropagation();
+      if (!confirm("Diesen Bild-Link wirklich löschen?")) return;
+      const idxInPool = imageUrls.findIndex(e => e.url === entry.url && e.name === entry.name);
+      if (idxInPool >= 0){
+        imageUrls.splice(idxInPool,1);
+        saveImageUrls();
+        rebuildTagsFromImages();
+        renderImagePool();
+        renderTagManagement();
+        renderWheelTagFilter();
+        rebuildWheelPool();
+        renderWheelReset();
+        syncWheelNamesFromImages();
+      }
+      const idxInDisplayed = wheelDisplayed.indexOf(entry);
+      if (idxInDisplayed >= 0){
+        wheelDisplayed.splice(idxInDisplayed,1);
+        item.remove();
+      }
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(del);
+
+    topRow.appendChild(label);
+    topRow.appendChild(actions);
+    item.appendChild(topRow);
+
+    const tagsLabel = document.createElement("div");
+    tagsLabel.className = "muted";
+    tagsLabel.style.fontSize = "0.7rem";
+    tagsLabel.style.marginTop = "0.25rem";
+    tagsLabel.textContent = "Tags für dieses Bild:";
+    item.appendChild(tagsLabel);
+
+    const select = document.createElement("select");
+    select.multiple = true;
+    select.style.marginTop = "0.15rem";
+    select.style.width = "100%";
+    select.size = Math.min(4, Math.max(2, imageTags.length || 2));
+
+    imageTags.forEach(tag=>{
+      const opt = document.createElement("option");
+      opt.value = tag;
+      opt.textContent = tag;
+      if (entry.tags && entry.tags.includes(tag)) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener("change", ()=>{
+      const selected = Array.from(select.selectedOptions).map(o => o.value);
+      entry.tags = selected;
+      saveImageUrls();
+      rebuildTagsFromImages();
+      renderTagManagement();
+      renderWheelTagFilter();
+      rebuildWheelPool();
+      renderWheelReset();
+    });
+
+    item.appendChild(select);
+
+    const img = document.createElement("img");
+    img.src = entry.url;
+    img.alt = entry.name ? `Bild-URL – ${entry.name}` : "Bild-URL";
+    img.loading = "lazy";
+    img.className = "wheelImage";
+    item.appendChild(img);
+
+    wrapper.appendChild(item);
+  });
+}
+
+function renderImagePool(){
+  const info = $("#imagePoolInfo");
+  const grid = $("#imagePoolGrid");
+  if (info){
+    info.textContent = imageUrls.length
+      ? `${imageUrls.length} Bild-URLs im Pool.`
+      : "Aktuell sind keine Bild-URLs im Pool gespeichert.";
+  }
+  if (!grid) return;
+  grid.innerHTML = "";
+  if (!imageUrls.length) return;
+
+  imageUrls.forEach((entry, idx)=>{
+    if (!Array.isArray(entry.tags)) entry.tags = [];
+
     const item = document.createElement("div");
     item.className = "wheelItem";
 
@@ -788,6 +927,184 @@ function appendWheelImages(entries, replace){
   });
 }
 
+function renderTagManagement(){
+  const list = $("#tagList");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!imageTags.length){
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = "Noch keine Tags definiert. Du kannst unten neue Tags hinzufügen oder Tags aus Bildern übernehmen.";
+    list.appendChild(p);
+    return;
+  }
+  imageTags.forEach(tag=>{
+    const row = document.createElement("div");
+    row.className = "tagRow";
+
+    const span = document.createElement("span");
+    span.className = "tagChip";
+    span.textContent = tag;
+
+    const count = imageUrls.filter(e => Array.isArray(e.tags) && e.tags.includes(tag)).length;
+    const countSpan = document.createElement("span");
+    countSpan.className = "tagCount";
+    countSpan.textContent = `(${count})`;
+
+    const del = document.createElement("button");
+    del.textContent = "×";
+    del.title = "Tag löschen";
+    del.className = "iconButton";
+    del.addEventListener("click", ()=>{
+      if (!confirm(`Tag „${tag}“ wirklich löschen? Er wird bei allen Bildern entfernt.`)) return;
+      imageTags = imageTags.filter(t => t !== tag);
+      imageUrls.forEach(entry=>{
+        if (!Array.isArray(entry.tags)) return;
+        entry.tags = entry.tags.filter(t => t !== tag);
+      });
+      saveImageUrls();
+      saveImageTags();
+      renderImagePool();
+      renderTagManagement();
+      renderWheelTagFilter();
+      rebuildWheelPool();
+      renderWheelReset();
+    });
+
+    row.appendChild(span);
+    row.appendChild(countSpan);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function renderWheelTagFilter(){
+  const container = $("#wheelTagFilter");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!imageTags.length){
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = "Keine Tags vorhanden. Es werden alle Bilder verwendet.";
+    container.appendChild(p);
+    return;
+  }
+  const hint = document.createElement("p");
+  hint.className = "muted";
+  hint.textContent = "Tags für das Wheel auswählen (leer = alle Bilder):";
+  container.appendChild(hint);
+
+  imageTags.forEach(tag=>{
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "tagChip";
+    btn.textContent = tag;
+    if (selectedTags.has(tag)) btn.classList.add("tagChip-active");
+    btn.addEventListener("click", ()=>{
+      if (selectedTags.has(tag)) selectedTags.delete(tag);
+      else selectedTags.add(tag);
+      renderWheelTagFilter();
+      rebuildWheelPool();
+      renderWheelReset();
+    });
+    container.appendChild(btn);
+  });
+
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "tagChip tagChip-clear";
+  clearBtn.textContent = "Alle Tags zurücksetzen";
+  clearBtn.addEventListener("click", ()=>{
+    selectedTags.clear();
+    renderWheelTagFilter();
+    rebuildWheelPool();
+    renderWheelReset();
+  });
+  container.appendChild(clearBtn);
+}
+
+// Wheel Logik ----------------------------------------------------------------
+
+function handleWheelMoreClick(){
+  if (!wheelRemaining.length){
+    updateWheelInfo("Keine weiteren Bilder in der aktuellen Auswahl.");
+    return;
+  }
+  const entries = pickRandomFromRemaining(wheelBatchSize);
+  appendWheelImages(entries, false);
+}
+
+function handleWheelBatchChange(ev){
+  const val = parseInt(ev.target.value,10);
+  if (!isNaN(val) && val > 0){
+    wheelBatchSize = val;
+  }
+}
+
+function spinNameWheel(){
+  if (!wheelNamesRemaining.length){
+    if (!wheelNamesAll.length){
+      alert("Keine Namen im Pool. Bitte zuerst bei den Bild-URLs Namen vergeben.");
+      return;
+    }
+    wheelNamesRemaining = wheelNamesAll.slice();
+  }
+  const idx = Math.floor(Math.random() * wheelNamesRemaining.length);
+  const chosen = wheelNamesRemaining.splice(idx,1)[0];
+  selectedWheelName = chosen;
+
+  const n = wheelNamesAll.length;
+  if (n > 0){
+    const step = 360 / n;
+    const index = wheelNamesAll.indexOf(chosen);
+    const targetAngle = 360*5 + (index * step + step/2);
+    wheelRotation = targetAngle;
+    const circle = $("#wheelCircle");
+    if (circle){
+      circle.style.transition = "transform 2.5s cubic-bezier(0.19, 1, 0.22, 1)";
+      circle.style.transform = `rotate(${wheelRotation}deg)`;
+    }
+  }
+
+  const current = $("#wheelCurrentName");
+  if (current) current.textContent = chosen || "(kein Name)";
+
+  updateVisualWheel();
+  renderWheelNamesList();
+}
+
+function setupWcloudWheel(){
+  const moreBtn = $("#wheelMoreBtn");
+  const resetBtn = $("#wheelResetBtn");
+  const sizeSel = $("#wheelBatchSize");
+  const spinBtn = $("#wheelSpinBtn");
+  const resetNamesBtn = $("#wheelResetNamesBtn");
+  const modeRadios = $all("input[name='wheelMode']");
+
+  if (moreBtn)  moreBtn.addEventListener("click", handleWheelMoreClick);
+  if (resetBtn) resetBtn.addEventListener("click", renderWheelReset);
+  if (sizeSel)  sizeSel.addEventListener("change", handleWheelBatchChange);
+  if (spinBtn)  spinBtn.addEventListener("click", spinNameWheel);
+  if (resetNamesBtn) resetNamesBtn.addEventListener("click", resetNameWheel);
+
+  if (modeRadios && modeRadios.length){
+    modeRadios.forEach(radio=>{
+      radio.addEventListener("change",(ev)=>{
+        wheelMode = ev.target.value || "regular";
+        if (wheelMode === "regular"){
+          const base = getBaseImagesForWheel();
+          wheelRemaining = base.slice();
+          wheelDisplayed = [];
+          renderWheelReset();
+        } else if (wheelMode === "names"){
+          renderWheelReset();
+        }
+      });
+    });
+  }
+}
+
+// Settings / Backup / Image-Management --------------------------------------
 
 function setupSettings(){
   const clearBtn = $("#clearAllEntries");
@@ -995,9 +1312,7 @@ async function importBackupFile(file){
         if (item && typeof item === "object"){
           const url = String(item.url || "").trim();
           const name = normalizeName(item.name);
-          const tags = Array.isArray(item.tags)
-            ? item.tags.map(t => String(t || "").trim()).filter(Boolean)
-            : [];
+          const tags = Array.isArray(item.tags) ? item.tags : [];
           return url ? { url, name, tags } : null;
         }
         return null;
