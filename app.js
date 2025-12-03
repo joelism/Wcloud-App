@@ -68,6 +68,7 @@ let wheelBatchSize = 5;
 let imageTags = [];
 let selectedTags = new Set();
 
+// 🔧 FIX: Tags werden jetzt korrekt aus localStorage geladen
 function loadImageUrls(){
   try{
     const raw = localStorage.getItem(IMAGE_URLS_KEY);
@@ -76,14 +77,19 @@ function loadImageUrls(){
     if (!Array.isArray(parsed)) return [];
     return parsed
       .map(item=>{
+        // Alte Struktur: nur String (URL)
         if (typeof item === "string"){
           const url = item.trim();
-          return url ? { url, name: DEFAULT_IMAGE_NAME } : null;
+          return url ? { url, name: DEFAULT_IMAGE_NAME, tags: [] } : null;
         }
+        // Neue/aktuelle Struktur: Objekt mit url, name, evtl. tags
         if (item && typeof item === "object"){
           const url = String(item.url || "").trim();
           const name = normalizeName(item.name);
-          return url ? { url, name } : null;
+          const tags = Array.isArray(item.tags)
+            ? item.tags.map(t => String(t || "").trim()).filter(Boolean)
+            : [];
+          return url ? { url, name, tags } : null;
         }
         return null;
       })
@@ -678,402 +684,6 @@ function appendWheelImages(entries, replace){
     label.textContent = entry.name || DEFAULT_IMAGE_NAME;
     label.style.flex = "1 1 auto";
 
-    topRow.appendChild(label);
-    item.appendChild(topRow);
-
-    const img = document.createElement("img");
-    img.src = entry.url;
-    img.alt = entry.name ? `wcloud-wheel Bild – ${entry.name}` : "wcloud-wheel Bild";
-    img.loading = "lazy";
-    img.className = "wheelImage";
-    img.addEventListener("click", ()=>{
-      openLightboxAt(index);
-    });
-    item.appendChild(img);
-
-    wrapper.appendChild(item);
-  });
-}
-
-function handleWheelMoreClick(){
-  const grid = $("#wheelGrid");
-  const base = getBaseImagesForWheel();
-  if (!base.length){
-    if (grid) grid.innerHTML = "<p class='muted'>Keine Bilder für die aktuelle Tag-Auswahl. Füge im Tab „Einstellungen“ Bild-URLs hinzu oder entferne den Tag-Filter.</p>";
-    return;
-  }
-  if (!wheelRemaining.length){
-    updateWheelInfo("Alle Bilder mit den aktuellen Tags wurden bereits angezeigt. Mit „Zurücksetzen“ kannst du neu mischen.");
-    return;
-  }
-  const batch = pickRandomFromRemaining(wheelBatchSize);
-  appendWheelImages(batch, false);
-}
-
-function spinNameWheel(){
-  const grid = $("#wheelGrid");
-  const baseAll = getBaseImagesForWheel();
-  if (!baseAll.length){
-    if (grid) grid.innerHTML = "<p class='muted'>Keine Bilder für die aktuelle Tag-Auswahl. Füge im Tab „Einstellungen“ Bild-URLs hinzu oder entferne den Tag-Filter.</p>";
-    return;
-  }
-  if (!wheelNamesAll.length){
-    updateWheelInfo("Es sind keine Namen hinterlegt. Füge in den Einstellungen Name + URL hinzu.");
-    return;
-  }
-  if (!wheelNamesRemaining.length){
-    updateWheelInfo("Alle Namen wurden bereits gezogen. Mit „Zurücksetzen“ kannst du neu starten.");
-    return;
-  }
-
-  const idxRem = Math.floor(Math.random() * wheelNamesRemaining.length);
-  const name = wheelNamesRemaining.splice(idxRem, 1)[0];
-  selectedWheelName = name;
-
-  const current = $("#wheelCurrentName");
-  if (current) current.textContent = "Ausgewählt: " + name;
-
-  const matchingEntries = baseAll.filter(e => normalizeName(e.name) === name);
-  if (!matchingEntries.length){
-    updateWheelInfo("Für den Namen „" + name + "“ sind mit den aktuellen Tags keine Bilder hinterlegt.");
-    return;
-  }
-
-  const usedUrls = new Set(wheelDisplayed.map(e => e.url));
-  const unused = matchingEntries.filter(e => !usedUrls.has(e.url));
-  const pool = unused.length ? unused : matchingEntries;
-
-  const imgIdx = Math.floor(Math.random() * pool.length);
-  const chosenEntry = pool[imgIdx];
-
-  const circle = $("#wheelCircle");
-  if (circle && wheelNamesAll.length){
-    const n = wheelNamesAll.length;
-    const step = 360 / n;
-    const idxAll = wheelNamesAll.indexOf(name);
-    const midAngle = idxAll * step + step / 2;
-
-    const pointerAngle = 270; // oben
-    const diff = pointerAngle - midAngle;
-
-    wheelRotation = (wheelRotation || 0) + 720 + diff;
-    circle.style.transition = "transform 2.4s cubic-bezier(.17,.67,.32,1.34)";
-    circle.style.transform = `rotate(${wheelRotation}deg)`;
-  }
-
-  updateVisualWheel();
-  appendWheelImages([chosenEntry], false);
-}
-
-function handleWheelBatchChange(ev){
-  const val = parseInt(ev.target.value, 10);
-  if (!isNaN(val)) wheelBatchSize = val;
-}
-
-function updateWheelModeUI(){
-  const regular = $("#wheelRegularControls");
-  const nameControls = $("#wheelNameControls");
-  if (regular) regular.style.display = (wheelMode === "regular" ? "flex" : "none");
-  if (nameControls) nameControls.style.display = (wheelMode === "nameWheel" ? "block" : "none");
-}
-
-function setupWcloudWheel(){
-  const moreBtn = $("#wheelMoreBtn");
-  const resetBtn = $("#wheelResetBtn");
-  const sizeSel = $("#wheelBatchSize");
-  const spinBtn = $("#wheelSpinBtn");
-  const resetNamesBtn = $("#wheelResetNamesBtn");
-  const modeRadios = $all("input[name='wheelMode']");
-
-  if (moreBtn)  moreBtn.addEventListener("click", handleWheelMoreClick);
-  if (resetBtn) resetBtn.addEventListener("click", renderWheelReset);
-  if (sizeSel)  sizeSel.addEventListener("change", handleWheelBatchChange);
-  if (spinBtn)  spinBtn.addEventListener("click", spinNameWheel);
-  if (resetNamesBtn) resetNamesBtn.addEventListener("click", resetNameWheel);
-
-  if (modeRadios && modeRadios.length){
-    modeRadios.forEach(radio=>{
-      radio.addEventListener("change",(ev)=>{
-        wheelMode = ev.target.value || "regular";
-        updateWheelModeUI();
-      });
-      if (radio.checked){
-        wheelMode = radio.value || "regular";
-      }
-    });
-  }
-  updateWheelModeUI();
-}
-
-// Lightbox -------------------------------------------------------------------
-
-let lightboxIndex = -1;
-let touchStartY = null;
-
-function openLightboxAt(index){
-  if (index < 0 || index >= wheelDisplayed.length) return;
-  lightboxIndex = index;
-  const overlay = $("#imageLightbox");
-  const img = $("#lightboxImage");
-  if (!overlay || !img) return;
-  const entry = wheelDisplayed[index];
-  img.src = entry && entry.url ? entry.url : "";
-  overlay.classList.add("active");
-}
-
-function closeLightbox(){
-  const overlay = $("#imageLightbox");
-  if (!overlay) return;
-  overlay.classList.remove("active");
-  lightboxIndex = -1;
-}
-
-function showLightboxDelta(delta){
-  if (lightboxIndex < 0) return;
-  let idx = lightboxIndex + delta;
-  if (idx < 0) idx = wheelDisplayed.length - 1;
-  if (idx >= wheelDisplayed.length) idx = 0;
-  openLightboxAt(idx);
-}
-
-function setupLightbox(){
-  const overlay = $("#imageLightbox");
-  const closeBtn = $("#lightboxClose");
-  const prevBtn = $("#lightboxPrev");
-  const nextBtn = $("#lightboxNext");
-  const inner = $("#lightboxInner");
-  if (!overlay || !inner) return;
-
-  if (closeBtn) closeBtn.addEventListener("click", closeLightbox);
-  if (prevBtn) prevBtn.addEventListener("click", ()=>showLightboxDelta(-1));
-  if (nextBtn) nextBtn.addEventListener("click", ()=>showLightboxDelta(1));
-
-  overlay.addEventListener("click",(ev)=>{
-    if (ev.target === overlay) closeLightbox();
-  });
-
-  overlay.addEventListener("touchstart",(ev)=>{
-    if (ev.touches && ev.touches.length === 1){
-      touchStartY = ev.touches[0].clientY;
-    }
-  });
-  overlay.addEventListener("touchend",(ev)=>{
-    if (touchStartY == null || !ev.changedTouches || !ev.changedTouches.length) return;
-    const dy = ev.changedTouches[0].clientY - touchStartY;
-    const threshold = 40;
-    if (dy > threshold) {
-      showLightboxDelta(-1);
-    } else if (dy < -threshold) {
-      showLightboxDelta(1);
-    }
-    touchStartY = null;
-  });
-}
-
-// Tag-Management -------------------------------------------------------------
-
-function renderTagManagement(){
-  const list = $("#tagListManage");
-  if (!list) return;
-  list.innerHTML = "";
-  if (!imageTags.length){
-    const p = document.createElement("p");
-    p.className = "muted";
-    p.textContent = "Noch keine Tags vorhanden. Du kannst neue Tags über das Eingabefeld anlegen oder direkt im Dialog „Alle Tags bearbeiten“ pflegen.";
-    list.appendChild(p);
-    return;
-  }
-  imageTags.forEach(tag=>{
-    const chip = document.createElement("span");
-    chip.className = "tagChip";
-    chip.textContent = tag;
-
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "×";
-    delBtn.title = "Tag löschen";
-    delBtn.style.border = "none";
-    delBtn.style.background = "transparent";
-    delBtn.style.color = "#f97373";
-    delBtn.style.marginLeft = "0.35rem";
-    delBtn.style.cursor = "pointer";
-    delBtn.addEventListener("click",(ev)=>{
-      ev.stopPropagation();
-      if (!confirm(`Tag „${tag}“ wirklich löschen? Der Tag wird auch bei Bildern entfernt.`)) return;
-      imageTags = imageTags.filter(t => t !== tag);
-      imageUrls.forEach(entry=>{
-        if (Array.isArray(entry.tags)){
-          entry.tags = entry.tags.filter(t => t !== tag);
-        }
-      });
-      saveImageUrls();
-      saveImageTags();
-      rebuildWheelPool();
-      renderImagePool();
-      renderTagManagement();
-      renderWheelTagFilter();
-      renderWheelReset();
-      syncWheelNamesFromImages();
-    });
-
-    chip.appendChild(delBtn);
-    list.appendChild(chip);
-  });
-}
-
-function renderWheelTagFilter(){
-  const container = $("#wheelTagFilter");
-  if (!container) return;
-  container.innerHTML = "";
-  if (!imageTags.length){
-    const p = document.createElement("p");
-    p.className = "muted";
-    p.textContent = "Noch keine Tags vorhanden. Optional kannst du im Tab „Einstellungen“ Tags anlegen.";
-    container.appendChild(p);
-    return;
-  }
-
-  imageTags.forEach(tag=>{
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tagChip" + (selectedTags.has(tag) ? " tagChip-active" : "");
-    btn.textContent = tag;
-    btn.addEventListener("click", ()=>{
-      if (selectedTags.has(tag)) selectedTags.delete(tag);
-      else selectedTags.add(tag);
-      rebuildWheelPool();
-      renderWheelTagFilter();
-      renderWheelReset();
-    });
-    container.appendChild(btn);
-  });
-
-  const clear = document.createElement("button");
-  clear.type = "button";
-  clear.className = "btn btn-secondary btn-small";
-  clear.style.marginLeft = "0.5rem";
-  clear.textContent = "Filter löschen";
-  clear.addEventListener("click", ()=>{
-    selectedTags.clear();
-    rebuildWheelPool();
-    renderWheelTagFilter();
-    renderWheelReset();
-  });
-  container.appendChild(clear);
-}
-
-// Settings / Backup / Image pool --------------------------------------------
-
-
-async function exportBackup(){
-  const db = await openDB();
-  const sessions = await getAllSessions(db);
-  const payload = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    sessions,
-    imageUrls,
-    imageTags
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `wcloud-backup-${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-async function importBackupFile(file){
-  const text = await file.text();
-  let data;
-  try{
-    data = JSON.parse(text);
-  }catch{
-    throw new Error("Backup-Datei ist kein gültiges JSON.");
-  }
-  if (!data || typeof data !== "object"){
-    throw new Error("Backup-Datei hat ein ungültiges Format.");
-  }
-
-  if (Array.isArray(data.sessions)){
-    const db = await openDB();
-    for (const s of data.sessions){
-      if (!s) continue;
-      const { id, ...rest } = s;
-      if (rest.isoDate){
-        try{ await addSession(db, rest); }
-        catch(e){ console.warn("Konnte Session aus Backup nicht importieren:", e); }
-      }
-    }
-    await renderHistory();
-    await renderAnalysis();
-  }
-
-  if (Array.isArray(data.imageUrls)){
-    imageUrls = data.imageUrls
-      .map(item=>{
-        if (typeof item === "string"){
-          const url = item.trim();
-          return url ? { url, name: DEFAULT_IMAGE_NAME, tags: [] } : null;
-        }
-        if (item && typeof item === "object"){
-          const url = String(item.url || "").trim();
-          const name = normalizeName(item.name);
-          const tags = Array.isArray(item.tags)
-            ? item.tags.map(t => String(t || "").trim()).filter(Boolean)
-            : [];
-          return url ? { url, name, tags } : null;
-        }
-        return null;
-      })
-      .filter(Boolean);
-    saveImageUrls();
-  }
-
-  if (Array.isArray(data.imageTags)){
-    imageTags = data.imageTags.map(t => String(t || "").trim()).filter(Boolean);
-  } else {
-    rebuildTagsFromImages();
-  }
-  saveImageTags();
-  renderImagePool();
-  renderTagManagement();
-  renderWheelTagFilter();
-  renderWheelReset();
-  syncWheelNamesFromImages();
-}
-
-function renderImagePool(){
-  const info = $("#imagePoolInfo");
-  const grid = $("#imagePoolGrid");
-  if (info){
-    info.textContent = imageUrls.length
-      ? `${imageUrls.length} Bild-URLs im Pool.`
-      : "Aktuell sind keine Bild-URLs im Pool gespeichert.";
-  }
-  if (!grid) return;
-  grid.innerHTML = "";
-  if (!imageUrls.length) return;
-
-  imageUrls.forEach((entry, idx)=>{
-    if (!Array.isArray(entry.tags)) entry.tags = [];
-
-    const item = document.createElement("div");
-    item.className = "wheelItem";
-
-    const topRow = document.createElement("div");
-    topRow.style.display = "flex";
-    topRow.style.alignItems = "center";
-    topRow.style.justifyContent = "space-between";
-    topRow.style.columnGap = "0.25rem";
-
-    const label = document.createElement("div");
-    label.className = "wheelLabel";
-    label.textContent = entry.name || DEFAULT_IMAGE_NAME;
-    label.style.flex = "1 1 auto";
-
     const actions = document.createElement("div");
     actions.style.display = "flex";
     actions.style.alignItems = "center";
@@ -1150,7 +760,7 @@ function renderImagePool(){
       const opt = document.createElement("option");
       opt.value = tag;
       opt.textContent = tag;
-      if (entry.tags.includes(tag)) opt.selected = true;
+      if (entry.tags && entry.tags.includes(tag)) opt.selected = true;
       select.appendChild(opt);
     });
 
@@ -1324,6 +934,154 @@ function setupSettings(){
       if (nameInput) nameInput.value = "";
     });
   }
+}
+
+// Backup-Export/Import -------------------------------------------------------
+
+async function exportBackup(){
+  const db = await openDB();
+  const sessions = await getAllSessions(db);
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    sessions,
+    imageUrls,
+    imageTags
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `wcloud-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importBackupFile(file){
+  const text = await file.text();
+  let data;
+  try{
+    data = JSON.parse(text);
+  }catch{
+    throw new Error("Backup-Datei ist kein gültiges JSON.");
+  }
+  if (!data || typeof data !== "object"){
+    throw new Error("Backup-Datei hat ein ungültiges Format.");
+  }
+
+  if (Array.isArray(data.sessions)){
+    const db = await openDB();
+    for (const s of data.sessions){
+      if (!s) continue;
+      const { id, ...rest } = s;
+      if (rest.isoDate){
+        try{ await addSession(db, rest); }
+        catch(e){ console.warn("Konnte Session aus Backup nicht importieren:", e); }
+      }
+    }
+    await renderHistory();
+    await renderAnalysis();
+  }
+
+  if (Array.isArray(data.imageUrls)){
+    imageUrls = data.imageUrls
+      .map(item=>{
+        if (typeof item === "string"){
+          const url = item.trim();
+          return url ? { url, name: DEFAULT_IMAGE_NAME, tags: [] } : null;
+        }
+        if (item && typeof item === "object"){
+          const url = String(item.url || "").trim();
+          const name = normalizeName(item.name);
+          const tags = Array.isArray(item.tags)
+            ? item.tags.map(t => String(t || "").trim()).filter(Boolean)
+            : [];
+          return url ? { url, name, tags } : null;
+        }
+        return null;
+      })
+      .filter(Boolean);
+    saveImageUrls();
+  }
+
+  if (Array.isArray(data.imageTags)){
+    imageTags = data.imageTags.map(t => String(t || "").trim()).filter(Boolean);
+  } else {
+    rebuildTagsFromImages();
+  }
+  saveImageTags();
+  renderImagePool();
+  renderTagManagement();
+  renderWheelTagFilter();
+  renderWheelReset();
+  syncWheelNamesFromImages();
+}
+
+// Lightbox -------------------------------------------------------------------
+
+let lightboxIndex = -1;
+let touchStartY = null;
+
+function openLightboxAt(index){
+  if (index < 0 || index >= wheelDisplayed.length) return;
+  lightboxIndex = index;
+  const overlay = $("#imageLightbox");
+  const img = $("#lightboxImage");
+  if (!overlay || !img) return;
+  const entry = wheelDisplayed[index];
+  img.src = entry && entry.url ? entry.url : "";
+  overlay.classList.add("active");
+}
+
+function closeLightbox(){
+  const overlay = $("#imageLightbox");
+  if (!overlay) return;
+  overlay.classList.remove("active");
+  lightboxIndex = -1;
+}
+
+function showLightboxDelta(delta){
+  if (lightboxIndex < 0) return;
+  let idx = lightboxIndex + delta;
+  if (idx < 0) idx = wheelDisplayed.length - 1;
+  if (idx >= wheelDisplayed.length) idx = 0;
+  openLightboxAt(idx);
+}
+
+function setupLightbox(){
+  const overlay = $("#imageLightbox");
+  const closeBtn = $("#lightboxClose");
+  const prevBtn = $("#lightboxPrev");
+  const nextBtn = $("#lightboxNext");
+  const inner = $("#lightboxInner");
+  if (!overlay || !inner) return;
+
+  if (closeBtn) closeBtn.addEventListener("click", closeLightbox);
+  if (prevBtn) prevBtn.addEventListener("click", ()=>showLightboxDelta(-1));
+  if (nextBtn) nextBtn.addEventListener("click", ()=>showLightboxDelta(1));
+
+  overlay.addEventListener("click",(ev)=>{
+    if (ev.target === overlay) closeLightbox();
+  });
+
+  overlay.addEventListener("touchstart",(ev)=>{
+    if (ev.touches && ev.touches.length === 1){
+      touchStartY = ev.touches[0].clientY;
+    }
+  });
+  overlay.addEventListener("touchend",(ev)=>{
+    if (touchStartY == null || !ev.changedTouches || !ev.changedTouches.length) return;
+    const dy = ev.changedTouches[0].clientY - touchStartY;
+    const threshold = 40;
+    if (dy > threshold) {
+      showLightboxDelta(-1);
+    } else if (dy < -threshold) {
+      showLightboxDelta(1);
+    }
+    touchStartY = null;
+  });
 }
 
 // Boot -----------------------------------------------------------------------
