@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wcloud App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login">
+  <img id="loginLogo" src="logo.png" alt="Wcloud Logo">
+
+  <div id="loginCard">
+    <form id="loginForm">
+      <label for="pinInput">PIN</label>
+      <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" />
+      <button type="submit" class="btn btn-primary">Entsperren</button>
+      <div id="loginError" hidden>Falsche PIN.</div>
+    </form>
+
+    <p id="loginHint">
+      Hinweis: Dieses Tool ist nur zur privaten Selbstbeobachtung gedacht.<br>
+      Keine minderjährigen oder illegalen Inhalte. Alle Daten bleiben lokal in deinem Browser.
+    </p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" hidden>
+  <!-- Navigation -->
+  <nav id="topNav">
+    <button data-tab="new">Neuer Eintrag</button>
+    <button data-tab="history">Verlauf</button>
+    <button data-tab="analysis">Analyse</button>
+    <button data-tab="wheel">wcloud-wheel</button>
+    <button data-tab="settings">Einstellungen</button>
+  </nav>
+
+  <!-- Content Tabs -->
+  <main id="content"></main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
